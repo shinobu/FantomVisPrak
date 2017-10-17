@@ -12,14 +12,6 @@ namespace
             Options( fantom::Options::Control& control )
                 : DataAlgorithm::Options( control )
             {
-                add< long >( "nx", "", 10 );
-                add< long >( "ny", "", 10 );
-                add< long >( "nz", "", 10 );
-
-                addSeparator();
-                add< double >( "dx", "", 1.0 );
-                add< double >( "dy", "", 1.0 );
-                add< double >( "dz", "", 1.0 );
             }
         };
 
@@ -47,26 +39,31 @@ namespace
         {
           // ##### Variable #####
           size_t t= (size_t) 3;
-          const std::pair< Cell::Type, size_t >  cellCounts =
-          std::unique_ptr< ValueArray< size_t > >  	indices =
-
+          //const std::pair< Cell::Type, size_t >  cellCounts =
+          //std::unique_ptr< ValueArray< size_t > >  	indices =
           // ##### Domain #####
-            size_t extent[] = { (size_t)options.get< long >( "nx" ),
-                                (size_t)options.get< long >( "ny" ),
-                                (size_t)options.get< long >( "nz" ) };
-            double origin[] = { -0.5 * options.get< double >( "dx" ) * ( options.get< long >( "nx" ) - 1 ),
-                                -0.5 * options.get< double >( "dy" ) * ( options.get< long >( "ny" ) - 1 ),
-                                -0.5 * options.get< double >( "dz" ) * ( options.get< long >( "nz" ) - 1 ) };
-            double spacing[] = { options.get< double >( "dx" ), options.get< double >( "dy" ), options.get< double >( "dz" ) };
+            long nx = 10;
+            long ny = 10;
+            long nz = 10;
+            double dx = 1.0;
+            double dy = 1.0;
+            double dz = 1.0;
+            size_t extent[] = { (size_t)nx,
+                                (size_t)ny,
+                                (size_t)nz };
+            double origin[] = { -0.5 * dx * ( nx - 1 ),
+                                -0.5 * dy * ( ny - 1 ),
+                                -0.5 * dz * ( nz - 1 ) };
+            double spacing[] = { dx, dy, dz };
 
             std::shared_ptr< const DiscreteDomain< 3 > > mDomain = DomainFactory::makeDomainUniform( extent, origin, spacing );
 
             //##### Make Object #####
-            //std::shared_ptr< const Grid< 3 > > mGrid = DomainFactory::makeGridStructured( *mDomain );
-            //setResult( "grid", mGrid );
+            std::shared_ptr< const Grid< 3 > > mGrid = DomainFactory::makeGridStructured( *mDomain );
+            setResult( "grid", mGrid );
 
             //##### New Object #####
-            static std::shared_ptr< const Grid< D > > fantom::DomainFactory::makeGridUnstructured(*mDomain, t, cellCounts, indices)
+            //static std::shared_ptr< const Grid< D > > fantom::DomainFactory::makeGridUnstructured(*mDomain, t, cellCounts, indices)
 
 
         }
