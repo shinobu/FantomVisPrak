@@ -38,9 +38,16 @@ namespace
         virtual void execute( const Algorithm::Options& options, const volatile bool& /*abortFlag*/ ) override
         {
           // ##### Variable #####
-          size_t t= (size_t) 3;
-          //const std::pair< Cell::Type, size_t >  cellCounts =
-          //std::unique_ptr< ValueArray< size_t > >  	indices =
+          size_t numCellTypes = (size_t) 2;
+          const std::pair< Cell::Type, size_t >  cellCounts0(Cell::HEXAHEDRON, 1);
+          const std::pair< Cell::Type, size_t >  cellCounts1(Cell::TETRAHEDRON, 1);
+          const std::pair< Cell::Type, size_t > cellCounts[2] = {cellCounts0, cellCounts1};
+          std::vector<size_t> coords;
+          coords.push_back((size_t)0);
+          coords.push_back((size_t)1);
+          DefaultValueArray< size_t >* indArray = new DefaultValueArray< size_t >( coords, Precision::FLOAT64);
+          std::unique_ptr< ValueArray< size_t > > indices((ValueArray<size_t>*) indArray);
+          //std::unique_ptr< DefaultValueArray< size_t > > indices( indArray );
           // ##### Domain #####
             long nx = 10;
             long ny = 10;
@@ -60,12 +67,12 @@ namespace
 
             //##### Make Object #####
             std::shared_ptr< const Grid< 3 > > mGrid = DomainFactory::makeGridStructured( *mDomain );
-            setResult( "grid", mGrid );
+
 
             //##### New Object #####
-            //static std::shared_ptr< const Grid< D > > fantom::DomainFactory::makeGridUnstructured(*mDomain, t, cellCounts, indices)
+            static std::shared_ptr< const Grid< 3 > > mGridd = DomainFactory::makeGridUnstructured(*mDomain, numCellTypes, cellCounts, std::move(indices));
 
-
+            setResult( "grid", mGrid );
         }
     };
     AlgorithmRegister< CommitTutorialAlgorithm > dummy( "Tutorial/Commit2", "Generate a simple vector field." );
