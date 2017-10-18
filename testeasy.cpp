@@ -31,6 +31,7 @@ namespace
                 : DataAlgorithm::DataOutputs( control )
             {
                 add< Grid< 3 > >( "grid" );
+                add<Grid<3>>("house");
             }
         };
 
@@ -45,12 +46,78 @@ namespace
 
         virtual void execute( const Algorithm::Options& options, const volatile bool& /*abortFlag*/ ) override
         {
-          // ##### Variable #####
-          size_t t= (size_t) 3;
-          const std::pair< Cell::Type, size_t >  cellCounts =
-          std::unique_ptr< ValueArray< size_t > >  	indices =
+          //Wie viele Zelltypen
+          size_t t = (size_t) 3;
+
+          //Welcher Zelltyp
+          //const voxel_pair p(fantom::Cell::Type::HEXAHEDRON,(size_t) 2);
+          //const prism_pair p(fantom::Cell::Type::PRISM,(size_t) 1);
+          //const pyramid_pair p(fantom::Cell::Type::PYRAMID,(size_t) 1);
+
+          //Häufigkeit
+          //const std::pair< Cell::Type, size_t > cellCounts[] = {voxel_pair, prism_pair, pyramid_pair};
+
+          const std::pair< Cell::Type, size_t > cellCounts[] =
+          {
+            std::make_pair(Cell::HEXAHEDRON,(size_t) 2),
+            std::make_pair(Cell::PRISM,(size_t) 1),
+            std::make_pair(Cell::PYRAMID,(size_t) 1)
+          };
+
+          //Zellindices
+          std::vector<size_t> vertice_vec = std::vector<size_t>();
+          vertice_vec.resize(27);
+          vertice_vec.push_back(0);
+          vertice_vec.push_back(1);
+          vertice_vec.push_back(2);
+          vertice_vec.push_back(3);
+          vertice_vec.push_back(4);
+          vertice_vec.push_back(5);
+          vertice_vec.push_back(6);
+          vertice_vec.push_back(7);
+          vertice_vec.push_back(1);
+          vertice_vec.push_back(2);
+          vertice_vec.push_back(5);
+          vertice_vec.push_back(6);
+          vertice_vec.push_back(8);
+          vertice_vec.push_back(9);
+          vertice_vec.push_back(10);
+          vertice_vec.push_back(11);
+          vertice_vec.push_back(4);
+          vertice_vec.push_back(5);
+          vertice_vec.push_back(6);
+          vertice_vec.push_back(7);
+          vertice_vec.push_back(12);
+          vertice_vec.push_back(5);
+          vertice_vec.push_back(6);
+          vertice_vec.push_back(10);
+          vertice_vec.push_back(11);
+          vertice_vec.push_back(13);
+          vertice_vec.push_back(14);
+
+          // Raumpunkt
+          std::vector<fantom::Vector3> raum_punkte = std::vector<fantom::Vector3>();
+          raum_punkte.push_back({0,0,0});
+          raum_punkte.push_back({1,0,0});
+          raum_punkte.push_back({2,0,0});
+          raum_punkte.push_back({0,1,0});
+          raum_punkte.push_back({1,1,0});
+          raum_punkte.push_back({2,1,0});
+          raum_punkte.push_back({0,1,1});
+          raum_punkte.push_back({1,1,1});
+          raum_punkte.push_back({2,1,1});
+          raum_punkte.push_back({0,0,1});
+          raum_punkte.push_back({1,0,1});
+          raum_punkte.push_back({2,0,1});
+          raum_punkte.push_back({0,1,2});
+          raum_punkte.push_back({1,1,2});
+          raum_punkte.push_back({2,1,2});
+          raum_punkte.push_back({0,0,2});
+          raum_punkte.push_back({1,0,2});
+          raum_punkte.push_back({2,0,2});
 
           // ##### Domain #####
+            /*
             size_t extent[] = { (size_t)options.get< long >( "nx" ),
                                 (size_t)options.get< long >( "ny" ),
                                 (size_t)options.get< long >( "nz" ) };
@@ -60,14 +127,22 @@ namespace
             double spacing[] = { options.get< double >( "dx" ), options.get< double >( "dy" ), options.get< double >( "dz" ) };
 
             std::shared_ptr< const DiscreteDomain< 3 > > mDomain = DomainFactory::makeDomainUniform( extent, origin, spacing );
+            */
+          std::shared_ptr< const DiscreteDomain< 3 > > mDomain = DomainFactory::makeDomainArbitrary( raum_punkte, Precision::FLOAT64 );
 
             //##### Make Object #####
             //std::shared_ptr< const Grid< 3 > > mGrid = DomainFactory::makeGridStructured( *mDomain );
             //setResult( "grid", mGrid );
 
             //##### New Object #####
-            static std::shared_ptr< const Grid< D > > fantom::DomainFactory::makeGridUnstructured(*mDomain, t, cellCounts, indices)
+            // PARAMS
+            // 1. In welchem raum zeichne ich
+            // 2. Wieviel Zelltypen benutze ich für mein Konstrukt
+            // 3. Welcher Zelltyp wird wie oft verwendet
+            // 4. Gibt die Ordnung der punkte an um bspw. einen Tetraeder zu beschreiben ~> suche
 
+          std::shared_ptr< const Grid< 3 > > house = DomainFactory::makeGridUnstructured(*mDomain, t, cellCounts, fantom::makeValueArray<size_t>(vertice_vec, Precision::FLOAT64));
+          setResult( "house", house );
 
         }
     };
