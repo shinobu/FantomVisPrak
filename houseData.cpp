@@ -1,19 +1,20 @@
 #include <fantom/algorithm.hpp>
 #include <fantom/fields.hpp>
 #include <fantom/register.hpp>
+#include <cmath>
 
 using namespace fantom;
 
 namespace
 {
-    class houseDataAlgorithm
-        : public DataAlgorithm
+    class houseDataAlgorithm : public DataAlgorithm
     {
-
+      std::vector< Tensor<double, 3>  > pointStack;
+      std::vector<size_t> indicesRaw;
+      std::vector<std::pair< Cell::Type, size_t >> cellCountsV;
+      size_t numCellTypes = (size_t) 0;
     public:
-
-        struct Options
-            : public DataAlgorithm::Options
+        struct Options : public DataAlgorithm::Options
         {
             Options( Control& control )
                 : DataAlgorithm::Options(control)
@@ -27,8 +28,7 @@ namespace
             }
         };
 
-        struct DataOutputs
-            : public DataAlgorithm::DataOutputs
+        struct DataOutputs : public DataAlgorithm::DataOutputs
         {
             DataOutputs( Control& control )
                 : DataAlgorithm::DataOutputs(control)
@@ -45,66 +45,55 @@ namespace
             // initialize internal data members
         }
 
+        size_t usePoint(std::initializer_list<double> point)
+        {
+          //hier Suchstruktur für Wiederverwendung einbauen
+            pointStack.push_back(*(new Tensor<double, 3>(point)));
+            return (size_t)(pointStack.size() -1 ); //nach Suchstruktur verändern
+        }
+
+        void createHouse(double offsetX, double offsetY, int height = 0){
+            makeHouseBody(offsetX, offsetY, height);
+            makeHouseRoof(offsetX, offsetY);
+        }
+
+        void makeHouseBody(double offsetX, double offsetY, int height = 0){
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, -0.5, 0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, -0.5, 0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, -0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, -0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, 0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, 0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, 0.5, 0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, 0.5, 0.5 + offsetY}));
+          const std::pair< Cell::Type, size_t > cellCounts0(Cell::HEXAHEDRON, 1);
+          cellCountsV.push_back(cellCounts0);
+          numCellTypes += 1;
+        }
+
+        void makeHouseRoof(double offsetX, double offsetY){
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, 0.5, 0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, 0.5, 0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, 0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, 0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({offsetX, 1, offsetY}));
+          const std::pair< Cell::Type, size_t >  cellCounts1(Cell::PYRAMID, 1);
+          cellCountsV.push_back(cellCounts1);
+          numCellTypes++;
+        }
+
         void execute( const Algorithm::Options& options, const volatile bool& abortFlag ) override
         {
             int house_count = options.get<int>("#houses");
-            double coord_1[3] = {-0.5, -0.5, 0.5};
-            double coord_2[3] = {0.5, -0.5, 0.5};
-            double coord_3[3] = {0.5, -0.5, -0.5};
-            double coord_4[3] = {-0.5, -0.5, -0.5};
-            double coord_5[3] = {-0.5, 0.5, -0.5};
-            double coord_6[3] = {0.5, 0.5, -0.5};
-            double coord_7[3] = {0.5, 0.5, 0.5};
-            double coord_8[3] = {-0.5, 0.5, 0.5};
-            double coord_9[3] = {0, 1, 0};
-            Tensor<double, 3> tensor_1(coord_1);
-            Tensor<double, 3> tensor_2(coord_2);
-            Tensor<double, 3> tensor_3(coord_3);
-            Tensor<double, 3> tensor_4(coord_4);
-            Tensor<double, 3> tensor_5(coord_5);
-            Tensor<double, 3> tensor_6(coord_6);
-            Tensor<double, 3> tensor_7(coord_7);
-            Tensor<double, 3> tensor_8(coord_8);
-            Tensor<double, 3> tensor_9(coord_9);
-            std::vector< Tensor<double, 3>  > points;
-            points.push_back(tensor_1);
-            points.push_back(tensor_2);
-            points.push_back(tensor_3);
-            points.push_back(tensor_4);
-            points.push_back(tensor_5);
-            points.push_back(tensor_6);
-            points.push_back(tensor_7);
-            points.push_back(tensor_8);
-            points.push_back(tensor_9);
-            std::shared_ptr< const DiscreteDomain< 3 > > mDomain = DomainFactory::makeDomainArbitrary(points, Precision::FLOAT64);
-            // ##### numCellTypes #####
-            size_t numCellTypes = (size_t) 2;
 
-            // ##### cellCounts #####
-            const std::pair< Cell::Type, size_t >  cellCounts0(Cell::HEXAHEDRON, 1);
-            const std::pair< Cell::Type, size_t >  cellCounts1(Cell::PYRAMID, 1);
-            const std::pair< Cell::Type, size_t > cellCounts[2] = {cellCounts0, cellCounts1};
+            createHouse(0, 0, 0);
+            createHouse(2, 2, 0);
 
-            // ##### indices #####
-            // Hexahedron
-            std::vector<size_t> coords;
-            coords.push_back((size_t)0);
-            coords.push_back((size_t)1);
-            coords.push_back((size_t)2);
-            coords.push_back((size_t)3);
-            coords.push_back((size_t)4);
-            coords.push_back((size_t)5);
-            coords.push_back((size_t)6);
-            coords.push_back((size_t)7);
+            std::shared_ptr< const DiscreteDomain< 3 > > mDomain = DomainFactory::makeDomainArbitrary(pointStack, Precision::FLOAT64);
+            std::pair< Cell::Type, size_t > *cellCounts = new std::pair< Cell::Type, size_t >[cellCountsV.size()];
+            std::copy(cellCountsV.begin(), cellCountsV.end(), cellCounts);
 
-            // Pyramid
-            coords.push_back((size_t)4);
-            coords.push_back((size_t)5);
-            coords.push_back((size_t)6);
-            coords.push_back((size_t)7);
-            coords.push_back((size_t)8);
-            //coords.push_back((size_t)1);
-            DefaultValueArray< size_t >* indArray = new DefaultValueArray< size_t >( coords, Precision::FLOAT64);
+            DefaultValueArray< size_t >* indArray = new DefaultValueArray< size_t >( indicesRaw, Precision::FLOAT64);
             std::unique_ptr< ValueArray< size_t > > indices((ValueArray<size_t>*) indArray);
 
             static std::shared_ptr< const Grid< 3 > > mGrid = DomainFactory::makeGridUnstructured(*mDomain, numCellTypes, cellCounts, std::move(indices));
