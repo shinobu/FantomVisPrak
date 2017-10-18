@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include <fantom/algorithm.hpp>
 #include <fantom/fields.hpp>
 #include <fantom/register.hpp>
@@ -39,17 +40,63 @@ namespace
 
         };
 
+        struct position
+        {
+          double x = 0;
+          double y = 0;
+          size_t index;
+          bool init = false;
+          bool same(double offsetX, double offsetY){
+            //infoLog() << "Point " << offsetX << " " << offsetY << " | " << x << " " << y << " init: " << init << "  res:" << (((x == offsetX) && (y == offsetY)) && (init)) << std::endl;
+            return (((x == offsetX) && (y == offsetY)) && (init));
+          }
+          void set(double offsetX, double offsetY, size_t indexP){
+            x = offsetX;
+            y = offsetY;
+            init = true;
+            index = indexP;
+          }
+        };
+
+        struct positionCache{
+          position pos[4];
+          position* current = pos;
+          int currentInd = 0;
+          size_t search(double offsetX, double offsetY){
+            int i = 0;
+            while (i < 4) {
+              if(pos[(currentInd + i) % 4].same(offsetX, offsetY)){
+                return pos[(currentInd + i) % 4].index;
+              }
+              i++;
+            }
+            return -1;
+          }
+          size_t addPosition(double offsetX, double offsetY, size_t indexP){
+            pos[currentInd].set(offsetX, offsetY, indexP);
+            currentInd = (currentInd + 1) % 4;
+            return indexP;
+          }
+        };
+
         houseDataAlgorithm( InitData & data)
             : DataAlgorithm(data)
         {
             // initialize internal data members
         }
+        positionCache cache;
 
         size_t usePoint(std::initializer_list<double> point)
         {
-          //hier Suchstruktur für Wiederverwendung einbauen
-            pointStack.push_back(*(new Tensor<double, 3>(point)));
-            return (size_t)(pointStack.size() -1 ); //nach Suchstruktur verändern
+            double offsetX = point.begin()[0];
+            double offsetY = point.begin()[1];
+            int exist = cache.search(offsetX,  offsetY);
+            if(exist >= 0){
+              return exist;
+            }else{
+              pointStack.push_back(*(new Tensor<double, 3>(point)));
+              return cache.addPosition(offsetX, offsetY ,(size_t)(pointStack.size() -1 )); //nach Suchstruktur verändern
+            }
         }
 
         void createHouse(double offsetX, double offsetY, int height = 0){
@@ -87,7 +134,7 @@ namespace
             int house_count = options.get<int>("#houses");
 
             createHouse(0, 0, 0);
-            createHouse(2, 2, 0);
+  //          createHouse(2, 2, 0);
 
             std::shared_ptr< const DiscreteDomain< 3 > > mDomain = DomainFactory::makeDomainArbitrary(pointStack, Precision::FLOAT64);
             std::pair< Cell::Type, size_t > *cellCounts = new std::pair< Cell::Type, size_t >[cellCountsV.size()];
