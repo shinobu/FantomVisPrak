@@ -1,19 +1,21 @@
+#include <stdexcept>
 #include <fantom/algorithm.hpp>
 #include <fantom/fields.hpp>
 #include <fantom/register.hpp>
+#include <cmath>
 
 using namespace fantom;
 
 namespace
 {
-    class houseDataAlgorithm
-        : public DataAlgorithm
+    class houseDataAlgorithm : public DataAlgorithm
     {
-
+      std::vector< Tensor<double, 3>  > pointStack;
+      std::vector<size_t> indicesRaw;
+      std::vector<std::pair< Cell::Type, size_t >> cellCountsV;
+      size_t numCellTypes = (size_t) 0;
     public:
-
-        struct Options
-            : public DataAlgorithm::Options
+        struct Options : public DataAlgorithm::Options
         {
             Options( Control& control )
                 : DataAlgorithm::Options(control)
@@ -27,8 +29,7 @@ namespace
             }
         };
 
-        struct DataOutputs
-            : public DataAlgorithm::DataOutputs
+        struct DataOutputs : public DataAlgorithm::DataOutputs
         {
             DataOutputs( Control& control )
                 : DataAlgorithm::DataOutputs(control)
@@ -39,72 +40,205 @@ namespace
 
         };
 
+        struct position
+        {
+          double x = 0;
+          double y = 0;
+	  double z = 0;
+          size_t index;
+          bool init = false;
+          bool same(double offsetX, double offsetY, double offsetZ){
+            return (((x == offsetX) && (y == offsetY)) && (z==offsetZ) && (init));
+          }
+          void set(double offsetX, double offsetY, double offsetZ, size_t indexP){
+            x = offsetX;
+            y = offsetY;
+	    z = offsetZ;
+            init = true;
+            index = indexP;
+          }
+        };
+
+        struct positionCache{
+          position pos[4];
+          position* current = pos;
+          int currentInd = 0;
+          size_t search(double offsetX, double offsetY, double offsetZ){
+            int i = 0;
+            while (i < 4) {
+              if(pos[(currentInd + i) % 4].same(offsetX, offsetY, offsetZ)){
+                return pos[(currentInd + i) % 4].index;
+              }
+              i++;
+            }
+            return -1;
+          }
+          size_t addPosition(double offsetX, double offsetY, double offsetZ, size_t indexP){
+            current[currentInd].set(offsetX, offsetY, offsetZ, indexP);
+            currentInd = (currentInd + 1) % 4;
+            return indexP;
+          }
+        };
+
         houseDataAlgorithm( InitData & data)
             : DataAlgorithm(data)
         {
             // initialize internal data members
         }
+        positionCache cache;
+
+        size_t usePoint(std::initializer_list<double> point)
+        {
+            double offsetX = point.begin()[0];
+	    double offsetY = point.begin()[1];
+            double offsetZ = point.begin()[2];
+            int exist = cache.search(offsetX,  offsetY, offsetZ);
+            if(exist >= 0){
+              return exist;
+            }else{
+              pointStack.push_back(*(new Tensor<double, 3>(point)));
+              return cache.addPosition(offsetX, offsetY, offsetZ , (size_t)(pointStack.size() -1 )); //nach Suchstruktur verändern
+            }
+        }
+
+        void createHouse(double offsetX, double offsetY, int height = 0){
+            makeHouseBody(offsetX, offsetY, height);
+            makeHouseRoof(offsetX, offsetY, height);
+        }
+
+        void makeHouseBody(double offsetX, double offsetY, int height = 0){
+	  if(height < 1){
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, -0.5, 0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, -0.5, 0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, -0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, -0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, 0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, 0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, 0.5, 0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, 0.5, 0.5 + offsetY}));
+	  }else {  
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, -0.5, 0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, -0.5, 0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, -0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, -0.5, -0.5 + offsetY}));
+
+          size_t local[4];
+          local[0] = usePoint({-0.5 + offsetX, 0.5, -0.5 + offsetY});
+          indicesRaw.push_back(local[0]);
+          local[1] = usePoint({0.5 + offsetX, 0.5, -0.5 + offsetY});
+          indicesRaw.push_back(local[1]);
+          local[2] = usePoint({0.5 + offsetX, 0.5, 0.5 + offsetY});
+          indicesRaw.push_back(local[2]);
+          local[3] = usePoint({-0.5 + offsetX, 0.5, 0.5 + offsetY});
+          indicesRaw.push_back(local[3]);
+
+                for(int i = 0; i < height; i++)
+		{
+                    indicesRaw.push_back(local[3]);
+                    indicesRaw.push_back(local[2]);
+                    indicesRaw.push_back(local[1]);
+                    indicesRaw.push_back(local[0]);
+                    local[0] = usePoint({-0.5 + offsetX, i + 0.5, -0.5 + offsetY});
+                    indicesRaw.push_back(local[0]);
+                    local[1] = usePoint({0.5 + offsetX, i + 0.5, -0.5 + offsetY});
+                    indicesRaw.push_back(local[1]);
+                    local[2] = usePoint({0.5 + offsetX, i + 0.5, 0.5 + offsetY});
+                    indicesRaw.push_back(local[2]);
+                    local[3] = usePoint({-0.5 + offsetX, i + 0.5, 0.5 + offsetY});
+                    indicesRaw.push_back(local[3]);
+	  	} 
+	  }
+          const std::pair< Cell::Type, size_t > cellCounts0(Cell::HEXAHEDRON, (1 + height));
+          cellCountsV.push_back(cellCounts0);
+          numCellTypes += 1;
+        }
+
+        void makeHouseRoof(double offsetX, double offsetY, int height = 0){
+          if(height > 0){
+              height--;
+          }
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, height + 0.5, 0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, height + 0.5, 0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({0.5 + offsetX, height + 0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({-0.5 + offsetX, height + 0.5, -0.5 + offsetY}));
+          indicesRaw.push_back(usePoint({offsetX, (height + 1), offsetY}));
+          const std::pair< Cell::Type, size_t >  cellCounts1(Cell::PYRAMID, 1);
+          cellCountsV.push_back(cellCounts1);
+          numCellTypes++;
+        }
+
+        void buildStarCity(int houses, int height, int spreading)
+        {
+            int check;
+            int x, z, h;
+            int max;
+            int min;
+            int offsetX = 1;
+            int offsetZ = 1;
+
+            for (int house = 0; house < houses; ++house)
+            {
+                check = house % 4;
+                x = 0, z = 0, h;
+                max = height;
+                min = 0;
+
+                if(house == 0)
+                {
+                    h = 0;
+                    createHouse(x, z, h);
+                }else{
+
+                    h = rand()%(max-min + 1) + min;
+
+                    if(check == 0 )
+                    {
+                        createHouse(x-(spreading*offsetX), z, h);
+                        offsetX += 1;
+                        offsetZ += 1;
+                    }else if(check == 1 )
+                    {
+                        createHouse(x, z+(spreading*offsetZ), h);
+                    }else if(check == 2 )
+                    {
+                        createHouse(x+(spreading*offsetX), z, h);
+                    }else if(check == 3 )
+                    {
+                        createHouse(x, z-(spreading*offsetZ), h);
+                    }
+                }
+            }
+        }
+
+        void makePlain(double length, double width){
+            length *= 0.5;
+            length++;
+            width *= 0.5;
+            width++;
+            indicesRaw.push_back(usePoint({-length, -0.5, -width}));
+            indicesRaw.push_back(usePoint({-length, -0.5, width}));
+            indicesRaw.push_back(usePoint({length, -0.5, width}));
+            indicesRaw.push_back(usePoint({length, -0.5, -width}));
+            const std::pair< Cell::Type, size_t >  cellCounts1(Cell::QUAD, 1);
+            cellCountsV.push_back(cellCounts1);
+            numCellTypes++;
+        }
 
         void execute( const Algorithm::Options& options, const volatile bool& abortFlag ) override
         {
             int house_count = options.get<int>("#houses");
-            double coord_1[3] = {-0.5, -0.5, 0.5};
-            double coord_2[3] = {0.5, -0.5, 0.5};
-            double coord_3[3] = {0.5, -0.5, -0.5};
-            double coord_4[3] = {-0.5, -0.5, -0.5};
-            double coord_5[3] = {-0.5, 0.5, -0.5};
-            double coord_6[3] = {0.5, 0.5, -0.5};
-            double coord_7[3] = {0.5, 0.5, 0.5};
-            double coord_8[3] = {-0.5, 0.5, 0.5};
-            double coord_9[3] = {0, 1, 0};
-            Tensor<double, 3> tensor_1(coord_1);
-            Tensor<double, 3> tensor_2(coord_2);
-            Tensor<double, 3> tensor_3(coord_3);
-            Tensor<double, 3> tensor_4(coord_4);
-            Tensor<double, 3> tensor_5(coord_5);
-            Tensor<double, 3> tensor_6(coord_6);
-            Tensor<double, 3> tensor_7(coord_7);
-            Tensor<double, 3> tensor_8(coord_8);
-            Tensor<double, 3> tensor_9(coord_9);
-            std::vector< Tensor<double, 3>  > points;
-            points.push_back(tensor_1);
-            points.push_back(tensor_2);
-            points.push_back(tensor_3);
-            points.push_back(tensor_4);
-            points.push_back(tensor_5);
-            points.push_back(tensor_6);
-            points.push_back(tensor_7);
-            points.push_back(tensor_8);
-            points.push_back(tensor_9);
-            std::shared_ptr< const DiscreteDomain< 3 > > mDomain = DomainFactory::makeDomainArbitrary(points, Precision::FLOAT64);
-            // ##### numCellTypes #####
-            size_t numCellTypes = (size_t) 2;
 
-            // ##### cellCounts #####
-            const std::pair< Cell::Type, size_t >  cellCounts0(Cell::HEXAHEDRON, 1);
-            const std::pair< Cell::Type, size_t >  cellCounts1(Cell::PYRAMID, 1);
-            const std::pair< Cell::Type, size_t > cellCounts[2] = {cellCounts0, cellCounts1};
+            buildStarCity(house_count, 10, 2);
+            makePlain(house_count, house_count);
 
-            // ##### indices #####
-            // Hexahedron
-            std::vector<size_t> coords;
-            coords.push_back((size_t)0);
-            coords.push_back((size_t)1);
-            coords.push_back((size_t)2);
-            coords.push_back((size_t)3);
-            coords.push_back((size_t)4);
-            coords.push_back((size_t)5);
-            coords.push_back((size_t)6);
-            coords.push_back((size_t)7);
+            //createHouse(0, 0, house_count);
+  //          createHouse(2, 2, 0);
 
-            // Pyramid
-            coords.push_back((size_t)4);
-            coords.push_back((size_t)5);
-            coords.push_back((size_t)6);
-            coords.push_back((size_t)7);
-            coords.push_back((size_t)8);
-            //coords.push_back((size_t)1);
-            DefaultValueArray< size_t >* indArray = new DefaultValueArray< size_t >( coords, Precision::FLOAT64);
+            std::shared_ptr< const DiscreteDomain< 3 > > mDomain = DomainFactory::makeDomainArbitrary(pointStack, Precision::FLOAT64);
+            std::pair< Cell::Type, size_t > *cellCounts = new std::pair< Cell::Type, size_t >[cellCountsV.size()];
+            std::copy(cellCountsV.begin(), cellCountsV.end(), cellCounts);
+
+            DefaultValueArray< size_t >* indArray = new DefaultValueArray< size_t >( indicesRaw, Precision::FLOAT64);
             std::unique_ptr< ValueArray< size_t > > indices((ValueArray<size_t>*) indArray);
 
             static std::shared_ptr< const Grid< 3 > > mGrid = DomainFactory::makeGridUnstructured(*mDomain, numCellTypes, cellCounts, std::move(indices));
